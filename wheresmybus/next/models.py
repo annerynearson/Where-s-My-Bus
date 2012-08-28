@@ -1,13 +1,14 @@
 import urllib
 import xml.etree.cElementTree as ET
 import logging
+import time
 
 from django.db import models
 from djangotoolbox.fields import EmbeddedModelField
 from django_mongodb_engine.contrib import MongoDBManager
 from django.contrib import admin
 
-from settings import RTT_DATA_URL, NEXT_DEPARTURES_ENDPOINT
+from settings import RTT_DATA_URL, NEXT_DEPARTURES_ENDPOINT, DDOT_BASE_URL, DDOT_NEXT_DEPARTURES
 from secrets import API_TOKEN
 
 NUMBER_OF_NEXT_BUSES = 2
@@ -57,7 +58,7 @@ class Point(models.Model):
 
 
 class Stop(models.Model):
-    stop_id = models.IntegerField()
+    stop_id = models.CharField(max_length=255)
     name = models.CharField(max_length=255)
     loc = EmbeddedModelField(Point)
 
@@ -75,7 +76,8 @@ class Stop(models.Model):
         """
         # Calling the API
         params = urllib.urlencode({'token': API_TOKEN, 'stopcode': self.stop_id})
-        url = RTT_DATA_URL + NEXT_DEPARTURES_ENDPOINT + params
+        url = DDOT_BASE_URL + DDOT_NEXT_DEPARTURES + self.stop_id + ".xml?key=BETA"
+	print url
         logger.info("Calling %s" % url)
         f = urllib.urlopen(url)
 
@@ -86,27 +88,48 @@ class Stop(models.Model):
 
         tree = ET.parse(self._get_data_from_webservice())
 
-        for l in tree.iter("Route"):
-            # l for line
-            next_buses = []
-            for d in l.iter("RouteDirection"):
+        #for l in tree.iter("Route"):
+            #l for line
+            #next_buses = []
+            #for d in l.iter("RouteDirection"):
                 # d for direction
-                direction = Direction(d.attrib.get("Code", None))
-                for b in list(d.iter("DepartureTime"))[:NUMBER_OF_NEXT_BUSES]:
+               # direction = Direction(d.attrib.get("Code", None))
+                #for b in list(d.iter("DepartureTime"))[:NUMBER_OF_NEXT_BUSES]:
                     # b for bus
-                    next_buses.append(NextBus(b.text,
-                                            direction))
+                   # next_buses.append(NextBus(b.text,direction))
 
-            if next_buses:
-                # Create and populate a line
-                line_number = l.attrib.get("Code", None)
-                line_title = l.attrib.get("Name", None)
-                next_buses.sort(key=lambda b: int(b.minutes))
+        current_time = int(tree.find("currentTime").text)
 
-                self.lines.append(Line(line_number, line_title, next_buses))
+        routes = {}
+
+        for l in tree.iter("arrivalAndDeparture"):
+            direction = l.find("tripHeadsign").text 
+            predicted_arrival = l.find("predictedArrivalTime").text 
+            scheduled_arrival = l.find("scheduledArrivalTime").text
+            
+            if int(predicted_arrival) == 0:
+                predicted_arrival_minutes = (int(scheduled_arrival) - current_time)/60000
+            else:
+                predicted_arrival_minutes = (int(predicted_arrival) - current_time)/60000
+
+                if predicted_arrival_minutes > -1 and direction in routes:
+                    routes[direction].append(NextBus(predicted_arrival_minutes,direction))
+                else:
+                    routes[direction] = []
+                    routes[direction].append(NextBus(predicted_arrival_minutes,direction))
+              
+        for routename, timeandroute in routes.iteritems():
+            # Create and populate a line
+            #line_number = l.find("routeShortName").text
+            #line_title = l.find ("routeLongName").text
+            #next_buses.sort(key=lambda b: int(b.minutes))
+
+            self.lines.append(Line(routename, routename, timeandroute))
+            print routename
+            print timeandroute
 
     def get_url(self):
-        return ABSOLUTE_URL+str(self.stop_id)
+        return ABSOLUTE_URL+str(self.stop_id) 
 
     def qrcode_image_url(self):
         url_encoded = urllib.quote(self.get_url())

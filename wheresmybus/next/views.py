@@ -34,6 +34,7 @@ def for_stop_id(request, stop_id):
 
 def api_for_stop_id(request, stop_id):
     if stop_id:
+        print stop_id
         s = get_object_or_404(Stop, stop_id=stop_id)
         s.update_predictions()
 

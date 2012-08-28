@@ -3,7 +3,18 @@
 
 <ul data-role="listview" data-inset="true">
 {% for line in s.lines %}
-	<li><strong>Line {{ line.number }}</strong> <span class="ui-li-count">{{ line.next_buses.0.minutes }} m</span></li>
+	<li>
+		<strong>Line {{ line.number }}</strong> 
+		
+		<span class="ui-li-count">
+		{% for next_bus in line.next_buses %}
+		{% if not forloop.first %}, {% endif %}
+			{{ next_bus.minutes }} m
+		{% endfor %}
+		</span>
+		
+		
+	</li>
 {% empty %}
 	<li>No next bus</li>
 {% endfor %}

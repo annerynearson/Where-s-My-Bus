@@ -186,7 +186,9 @@ LOGGING = {
 
 # Used to get bus stops geoloc data
 MTA_FEED_URL = "http://webservices.nextbus.com/service/publicXMLFeed?command=routeConfig&a=sf-muni"
+DDOT_BASE_URL = "http://ddot-beta.herokuapp.com/api/api/where/"
 
 # Used to get next bus departure time
 RTT_DATA_URL = "http://services.my511.org/Transit2.0/"
 NEXT_DEPARTURES_ENDPOINT = "GetNextDeparturesByStopCode.aspx?"
+DDOT_NEXT_DEPARTURES = "arrivals-and-departures-for-stop/"

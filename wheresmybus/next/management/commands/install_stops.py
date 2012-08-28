@@ -9,7 +9,7 @@ from lxml import etree
 
 from django.db import connections
 from django.core.management.base import BaseCommand, CommandError
-from wheresmybus.settings import MTA_FEED_URL
+from wheresmybus.settings import MTA_FEED_URL, DDOT_BASE_URL
 from wheresmybus.next.models import Point, Stop
 from wheresmybus.next.urls import STOP_ID_REGEX
 
@@ -17,7 +17,7 @@ logger = logging.getLogger("wheresmybus")
 
 def get_stop(stop_id, name, lat, lon):
     r = {}
-    r["stop_id"] = int(stop_id)
+    r["stop_id"] = stop_id
     r["name"] = name
     loc = {}
     loc["lat"] = lat
@@ -60,23 +60,38 @@ class Command(BaseCommand):
 
         # TODO: use django caching to speed up
         print "Downloading data from MTA"
-        logger.info("Calling %s" % MTA_FEED_URL)
-        f = urllib2.urlopen(MTA_FEED_URL)
+	stops_url = DDOT_BASE_URL + "stop-ids-for-agency/DDOT.xml?key=BETA"
+	print stops_url
+        logger.info("Calling %s" % stops_url)
+        f = urllib2.urlopen(stops_url)
 
-        feed = etree.parse(f).getroot()
-        i = 0
-        for s in feed.iter("stop"):
-            if ("title" in s.attrib) and ("lat" in s.attrib):
-                lat = s.get("lat")
-                lon = s.get("lon")
-                stop_id = s.get("stopId")
-                if not Stop.objects.filter(stop_id=stop_id):
-                    print "Saving stop #%s" % s.get("stopId")
-                    stop = get_stop(stop_id, s.get("title"), lat, lon)
-                    stop.save()
-                    i += 1
+       	feed = etree.parse(f).getroot() 
+	print feed
+	i = 0
+	failedstops = []
+	for s in feed.iter ("string"):
+		stop_info_url = DDOT_BASE_URL + "stop/" + s.text + ".xml?key=BETA"
+		print stop_info_url
+		
+		try:
+			g = urllib2.urlopen(stop_info_url)
+			stopdata = etree.parse(g).getroot()
+			e = stopdata.find ("data/entry")
+			stop_id = e.find("id").text
+			lat = e.find("lat").text
+			lon = e.find("lon").text
+			name = e.find("name").text
+      	  		if not Stop.objects.filter(stop_id=stop_id):
+                		print "Saving stop #%s" % stop_id
+                		stop = get_stop(stop_id, name, lat, lon)
+                		stop.save()
+                   		i += 1
+		except: 
+			print "could not load stop " + s.text 
+			failedstops.append (s.text)
 
         print "Installed %d stops." % i
+	print failedstops
         return i
     
     def create_index(self):

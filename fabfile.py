@@ -148,7 +148,7 @@ def start_app():
 @task
 def setup_local():
     if not os.path.exists(settings_django.LOGGING_DIR):
-        local("mkdir %s" % settings_django.LOGGING_DIR)
+        local("sudo mkdir -p %s" % settings_django.LOGGING_DIR)
     local("pip install -r requirements.txt")
 
     with cd(env.django_site_name):
